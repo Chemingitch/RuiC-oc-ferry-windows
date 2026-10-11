@@ -1,13 +1,26 @@
 <div align="center">
-  <img src="desktop/icon.png" width="112" alt="OC Ferry">
-  <h1>OC Ferry</h1>
-  <p><b>把 OpenCode 的免费模型摆渡给 WorkBuddy</b></p>
-  <p>跨平台托盘应用 · 无需登录注册、无需 API Key · 隔离运行时 · 并发检测 · 判定缓存 · 一键导入 · 本机 OpenAI 兼容转发口</p>
 
-  <img alt="许可证" src="https://img.shields.io/badge/license-MIT-3b6ea5?style=flat-square">
-  <img alt="平台" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-4b6fff?style=flat-square">
-  <img alt="Node" src="https://img.shields.io/badge/node-%3E%3D22-2f6f4f?style=flat-square">
-  <img alt="测试" src="https://img.shields.io/badge/tests-85%20passed-2f6f4f?style=flat-square">
+<img src="docs/banner.svg" alt="OC Ferry — 把 OpenCode 的免费模型摆渡给 WorkBuddy" width="100%">
+
+<br>
+
+<a href="https://github.com/Chemingitch/RuiC-oc-ferry-windows/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/Chemingitch/RuiC-oc-ferry-windows?style=flat-square&label=release&color=3b82f6&labelColor=161b22"></a>
+<img alt="下载量" src="https://img.shields.io/github/downloads/Chemingitch/RuiC-oc-ferry-windows/total?style=flat-square&label=downloads&color=2dd4bf&labelColor=161b22">
+<img alt="Star" src="https://img.shields.io/github/stars/Chemingitch/RuiC-oc-ferry-windows?style=flat-square&label=stars&color=dbab09&labelColor=161b22">
+<img alt="许可证" src="https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square&labelColor=161b22">
+<img alt="平台" src="https://img.shields.io/badge/platform-Windows-4b6fff?style=flat-square&labelColor=161b22">
+<img alt="Electron" src="https://img.shields.io/badge/Electron-托盘常驻-2f6f4f?style=flat-square&labelColor=161b22">
+
+<br><br>
+
+<a href="https://github.com/Chemingitch/RuiC-oc-ferry-windows/releases/latest"><img alt="下载 Windows 版" src="https://img.shields.io/badge/Download-Windows-3b82f6?style=for-the-badge&logo=windows11&logoColor=white&labelColor=161b22"></a>
+&nbsp;
+<a href="docs/Windows-说明.md"><img alt="Windows 专章" src="https://img.shields.io/badge/Docs-Windows%20专章-30363d?style=for-the-badge&logo=readthedocs&logoColor=white&labelColor=161b22"></a>
+
+<br>
+
+<sub>托盘常驻 · 无需登录注册、无需 API Key · 隔离运行时 · 并发检测 · 判定缓存 · 一键导入 · 本机 OpenAI 兼容转发口</sub>
+
 </div>
 
 ---
@@ -75,10 +88,11 @@ flowchart LR
 先安装 WorkBuddy。**不需要另外装 Node.js**（打包后的应用用 Electron 自带的 Node 跑后台服务）。
 
 - **macOS**：解压 zip，把 `OC Ferry.app` 拖进「应用程序」，双击打开。未做 Apple 公证，首次打开可能要右键 →「打开」。
-- **Windows**：运行 `OC-Ferry-Setup-<版本>-win-x64.exe`，装完桌面就有了图标，双击即开。
-  安装包会同时做两件事：把**开机自启**写进当前用户的 Run 项（启动参数 `--hidden`，开机后只常驻托盘、不弹窗）、并保证卸载时把这一条摘干净。
-  因此装完就等于「一直连着」——不用每次先开一次应用，WorkBuddy 里的免费模型才在。
-  （只想要绿色版的话用 `npm run build:win:portable`；portable 包必须完整解压，不要只复制 exe。）
+- **Windows**：到 **[Releases](https://github.com/Chemingitch/RuiC-oc-ferry-windows/releases/latest)** 下载 `OC-Ferry-Deployer.exe`，
+  双击、选个安装目录，它会自动把主程序和 OpenCode 运行时都装好（约 1 分钟，目标机无需预装 Python / Node），
+  完事在桌面留一个「OC Ferry」快捷方式。
+  想用绿色版就直接下 `OC-Ferry-0.3.0-win-x64.zip` —— **必须完整解压**，然后双击 `启动 OC Ferry.bat`
+  （不要只复制 exe 出来，运行时和数据目录都在压缩包里）。
 
 首次启动会自动准备 OpenCode、扫描免费模型并逐个检测，**检测完自动导入一次**。之后重新检测或读取**不会**自动改 WorkBuddy，需要点「导入 WorkBuddy」。
 
@@ -90,8 +104,8 @@ flowchart LR
 
 ## 一键部署器（Windows）
 
-`tools/deployer/` 下附带一个独立的 Windows 部署器，目标是让用户选一个目录、
-点一下按钮，就把主程序与 OpenCode 运行时都装好。
+[`tools/deployer/`](tools/deployer/) 下是一个独立的 Windows 部署器：**选一个目录、点一下按钮**，
+主程序与 OpenCode 运行时全部装好。
 
 - **单文件 exe**：约 13.5 MB，目标机不需要预装 Python / Node，双击即用
 - **无控制台窗口**：以 `WINDOWS_GUI` 子系统编译（PE Subsystem=2），系统不会分配控制台
@@ -99,12 +113,23 @@ flowchart LR
 - **单实例保护**：重复双击只会激活已有窗口，不会并发跑两次部署
 - **子进程无黑框**：所有 `subprocess` 统一带 `CREATE_NO_WINDOW`
 
+**五步部署流程**（全部已实现）：
+
+| 步骤 | 做什么 | 校验 |
+|---|---|---|
+| 1 | 检测运行环境（系统版本、WebView2 运行时） | — |
+| 2 | 校验部署位置（写入权限、磁盘空间） | — |
+| 3 | 展开 OC Ferry 主程序（从 Release 下载 151 MB 载荷） | SHA-256 + 安全解压（拒绝越界路径） |
+| 4 | 获取 OpenCode 运行时（解析 npm 官方元数据） | SHA-512 比对官方 `integrity` |
+| 5 | 创建启动入口（桌面快捷方式 + 启动脚本） | — |
+
+两个值得说的细节：
+
+- **失败可回滚**：覆盖安装时先把旧目录移开，解压失败自动还原到原安装。
+- **下载有备用线路**：`github.com` 不可达时自动改用 GitHub API 资产端点重试。
+
 **系统要求：Windows 10 1809+ / Windows 11。Windows 7 / 8 / 8.1 不受支持**
 （主程序基于 Electron，其 Chromium 与 WebView2 均已放弃 Win7）。
-
-> **当前状态**：界面、打包、运行环境适配已完成并通过测试；
-> 部署流程中「下载 OpenCode 运行时」「展开 OC Ferry 主程序」「写入模型配置」
-> 三步尚在开发中，界面中标记为 *待接入*。
 
 详见 [`tools/deployer/README.md`](tools/deployer/README.md)。
 
