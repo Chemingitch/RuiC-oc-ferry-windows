@@ -335,7 +335,7 @@
     <div class="col left">
       <div class="hero">
         <h1>部署本地 AI 运行时</h1>
-        <p>自动获取 OpenCode 最新运行时，展开 OC Ferry 主程序，<br>并写入可用模型配置 —— 一步到位。</p>
+        <p>下载并校验 OC Ferry 主程序与 OpenCode 运行时，<br>装好启动脚本与桌面快捷方式 —— 一步到位。</p>
       </div>
 
       <div class="target">
@@ -387,12 +387,11 @@
 <script>
 /* ============ 步骤定义 ============ */
 const STEPS = [
-  { key:'env',   name:'检测运行环境',      sub:'扫描系统版本与 WebView2 运行时' },
-  { key:'dir',   name:'校验部署位置',      sub:'检查写入权限与磁盘空间' },
-  { key:'fetch', name:'获取 OpenCode 运行时', sub:'从官方源解析最新稳定版本' },
-  { key:'unpack',name:'展开 OC Ferry 主程序', sub:'释放应用文件与便携数据目录' },
-  { key:'conf',  name:'写入模型配置',      sub:'生成 models.json 与免费模型清单' },
-  { key:'link',  name:'创建启动入口',      sub:'生成快捷方式与启动脚本' },
+  { key:'env',   name:'检测运行环境',         sub:'扫描系统版本与 WebView2 运行时' },
+  { key:'dir',   name:'校验部署位置',         sub:'检查写入权限与磁盘空间' },
+  { key:'unpack',name:'展开 OC Ferry 主程序', sub:'从发布源下载并释放应用文件' },
+  { key:'fetch', name:'获取 OpenCode 运行时', sub:'解析官方版本并校验完整性' },
+  { key:'link',  name:'创建启动入口',         sub:'生成桌面快捷方式与启动脚本' },
 ];
 
 /* ============ DOM ============ */

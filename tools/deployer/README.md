@@ -29,16 +29,24 @@ Windows 一键部署器 —— 把 OC Ferry 主程序与 OpenCode 运行时装�
 ```
 tools/deployer/
 ├── deployer.py          # 主程序：窗口外壳 + 环境探测 + 部署流程
+├── netfetch.py          # 下载 / 断点续传 / SHA-512 校验 / 安全解压（纯标准库）
+├── sources.py           # 源解析：GitHub Release（主程序）与 npm registry（运行时）
 ├── ui/index.html        # 界面：HTML/CSS/JS，暗色科技风
+├── payload/             # 随主程序一起分发的附加文件（启动脚本、快速开始）
+├── gen_payload.py       # 生成 payload/ 内容（GBK+CRLF，见下文「批处理编码」）
 ├── gen_icon.py          # 生成 app.ico（双层六边形徽标）
 ├── app.ico              # 应用图标，含 16/24/32/48/64/128/256 七种尺寸
-├── build.py             # PyInstaller 打包脚本
+├── build.py             # PyInstaller 打包部署器 exe
+├── pack_payload.py      # 打包主程序载荷 zip（app/ + payload/）
+├── publish-release.sh   # 把载荷 zip 发到 GitHub Release（自动带 sha256）
+├── smoke_payload.py     # 载荷冒烟测试：解压 → 真实启动 → 判定窗口响应
 ├── check_pe.py          # 读取 PE 头判断子系统（验证「无控制台」）
 ├── check_responding.py  # 判断窗口是否「未响应」（SendMessageTimeout WM_NULL）
 ├── shot.py              # 按窗口标题截图（PrintWindow）
 ├── shot_taskbar.py      # 抓取屏幕底部任务栏
 ├── probe_win.py         # 列出某个 PID 的全部顶层窗口（排查隐藏模态框）
-├── test_api.py          # Python 逻辑层自测（不开窗口）
+├── test_api.py          # Python 逻辑层自测（20 项，不开窗口）
+├── e2e_test.py          # 端到端部署测试（可加 --live 真走网络）
 ├── test_binary.sh       # 打包产物集成测试（干净目录 + 单实例）
 ├── test_loop.sh         # 连续多轮启动测试（用于捕捉竞态）
 ├── stress.sh            # 压力测试：反复冷启动，卡死自动留证
@@ -185,15 +193,77 @@ python build.py
 配套脚本：`diag.sh`（自动复现 + 抓证）、`check_responding.py`（判定响应性）、
 `probe_win.py`（枚举该进程全部顶层窗口，用于排除隐藏模态框）。
 
+## 部署流程
+
+| # | 步骤 | 实际动作 |
+|---|---|---|
+| 0 | 检测运行环境 | 读 Windows 版本与 WebView2 版本（三个注册表探针） |
+| 1 | 校验部署位置 | 真探测可写性 + 真算磁盘剩余，要求 ≥ 0.9 GB |
+| 2 | 展开 OC Ferry 主程序 | 查 GitHub Release → 下载 zip（可续传）→ 让路旧 `app/` → 解压 513 个文件 |
+| 3 | 获取 OpenCode 运行时 | 查 npm registry（官方源优先、镜像兜底）→ 下载 → **SHA-512 校验** → 只取出 `opencode.exe` |
+| 4 | 创建启动入口 | 校验启动脚本 + 建桌面快捷方式 |
+
+> **为什么没有「写入模型配置」这一步**：主程序自己做，而且做得更完整 ——
+> `src/sync.js` 会**原地合并** WorkBuddy 的 `models.json`（先备份、绝不碰用户自己的条目），
+> Windows 上还会用 `config-finder.js` 自动搜索配置文件位置。
+> 安装器再实现一遍是重复劳动，还要额外承担改动用户配置数据的风险。
+
+### 关键取舍
+
+* **让路而非覆盖**：目标已有 `app/` 时，先整体改名为 `app.old-<时间戳>` 再解压新的；
+  一旦解压失败立刻改名回滚。直接覆盖写会留下「既没有新版本、也没有完整老版本」的中间态。
+* **两级校验**：运行时按 npm 官方元数据的 `integrity` 做 SHA-512；主程序解压时由
+  `zipfile` 逐条目校验 CRC32，并带 zip-slip 路径穿越防护。
+* **代理坏了必须能直连**：先跟随环境变量代理，失败立刻退直连 —— 本机就常年挂着一个
+  指向 `127.0.0.1:7890` 的失效代理。
+
 ## 测试状态
 
 | 层级 | 覆盖内容 | 结果 |
 |---|---|---|
-| Python 逻辑 | 环境探测 / WebView2 查询 / 目录可写性 / 路径解析 / `js_api` 暴露面回归防护，共 13 项 | 通过 |
+| Python 逻辑 | 环境探测 / WebView2 / 目录可写性 / 路径解析 / `js_api` 暴露面回归防护 / zip-slip 防护 / 解压往返 / 进度节流，共 20 项 | **20/20 通过** |
 | 打包产物 | 干净目录独立运行、PE 子系统 = `WINDOWS_GUI`、任务栏图标 | 通过 |
-| 集成 · 连通性 | 连续 3 轮冷启动、单实例保护、前后端连通（日志出现「后端已连接」） | 通过 |
-| 集成 · 稳定性 | 连续 30 轮冷启动，逐轮 `SendMessageTimeout` 判定响应性 | **30/30 响应，0 次卡死** |
+| 集成 · 连通性 | 连续 3 轮冷启动、单实例保护、前后端连通 | 通过 |
+| 集成 · 稳定性 | 连续 30 轮冷启动，逐轮 `SendMessageTimeout` 判定响应性 | **30/30 响应** |
+| 端到端 · 本地源 | 全新安装 + 覆盖安装两条路径，产物齐备、中间目录清理干净 | 通过 |
+| 端到端 · 真实网络 | GitHub Release 下 151.4 MB + npm 下 57.5 MB + SHA-512 校验 + 展开 513 文件 | **79.1 秒跑通** |
+| 载荷冒烟 | 压缩包解压后经 `.bat` 启动，窗口判定为「响应」 | 通过 |
 
-> **当前进度**：界面骨架、打包、运行环境适配、稳定性已完成并验证。
-> 部署流程中的「下载 OpenCode 运行时」「展开主程序」「写入配置」三步尚未接入真实逻辑，
-> 界面中标记为 *待接入*。
+## 部署相关环境变量
+
+正式产物不需要设置任何变量；下面这些是留给自测和私有镜像的。
+
+| 变量 | 作用 |
+|---|---|
+| `FERRY_PAYLOAD_URL` | 覆盖主程序载荷地址（可指向本地文件，避免每次真下 150 MB） |
+| `FERRY_OPENCODE_TARBALL` | 覆盖 OpenCode 运行时 tgz 地址 |
+| `FERRY_PAYLOAD_SHA256` | 预留：对载荷做完整 sha256 校验（默认由 zip 的 CRC32 兜底） |
+| `FERRY_NO_SHORTCUT=1` | 跳过创建桌面快捷方式（自动化测试用） |
+| `FERRY_KEEP_OLD=1` | 覆盖安装时保留旧版本备份 `app.old-*`，便于回滚 |
+
+## 发布链路
+
+```bash
+# 1) 打包部署器 exe
+python build.py                        # → dist/OC-Ferry-Deployer.exe
+
+# 2) 打包主程序载荷（app/ + payload/ → zip）
+python pack_payload.py <OC-Ferry的app目录> ../release/OC-Ferry-0.3.0-win-x64.zip \
+    --extra-dir payload
+
+# 3) 发布前先验压缩包本身能跑
+python smoke_payload.py ../release/OC-Ferry-0.3.0-win-x64.zip /tmp/smoke --via-bat
+
+# 4) 发到 GitHub Release（自动把 sha256 写进 release notes）
+GH=/path/to/gh ./publish-release.sh ../release/OC-Ferry-0.3.0-win-x64.zip
+
+# 5) 端到端验收：跑完整部署，再验证装出来的目录能启动
+python e2e_test.py /tmp/installed --live
+python smoke_payload.py /tmp/installed --reuse
+```
+
+### 批处理编码
+
+`payload/` 里的 `.bat` 必须是 **GBK(cp936) + CRLF**。cmd.exe 遇到 UTF-8 BOM 会把
+`\ufeff` 塞进首行，使 `@echo off` 直接失效；LF 换行对括号块和标签的解析也不可靠。
+所以这些文件不手写，用 `gen_payload.py` 统一生成（它顺带保证文档里不含本机路径）。

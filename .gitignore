@@ -17,3 +17,6 @@ __pycache__/
 *.pyc
 *.spec
 tools/deployer/build/
+# 测试脚本生成的截图
+tools/deployer/shot.png
+tools/deployer/taskbar.png

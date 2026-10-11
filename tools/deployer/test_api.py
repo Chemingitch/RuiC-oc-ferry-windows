@@ -5,6 +5,7 @@ import json
 import pathlib
 import sys
 import tempfile
+import zipfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -95,6 +96,74 @@ if leak:
 print(f"  A13 内部窗口引用已下划线命名: {hasattr(api, '_window')}")
 if not hasattr(api, "_window"):
     FAIL.append("A13")
+
+# ---- A14~A20：新流程用到的纯函数与安全边界 ------------------------------
+nf, src = mod.netfetch, mod.sources
+
+print()
+check("A14 human_size()",
+      lambda: [mod.human_size(n) for n in (512, 4096, 5 * 1024 ** 2, 3 * 1024 ** 3)])
+
+print()
+_desk = mod.desktop_dir()
+print(f"  A15 desktop_dir() -> {_desk}  (存在={_desk.is_dir()})")
+if not _desk.is_dir():
+    FAIL.append("A15")
+
+# 压缩包是外来输入：解压前必须先把路径夹在目标目录里，否则一个
+# 精心构造的 ../../ 就能往系统目录里写文件。
+print()
+_missed = []
+for _n in ["../evil.txt", "a/../../evil.txt", "C:/Windows/system32/x.dll", "/etc/passwd"]:
+    try:
+        nf._safe_join(r"C:\dest", _n)
+        _missed.append(_n)
+    except nf.FetchError:
+        pass
+print(f"  A16 _safe_join 拒绝越界路径: {'全部拒绝' if not _missed else '漏放 ' + str(_missed)}")
+if _missed:
+    FAIL.append("A16")
+_ok_path = nf._safe_join(r"C:\dest", r"app\bin\x.exe")
+print(f"      正常相对路径放行 -> {_ok_path}")
+if not _ok_path.lower().startswith("c:\\dest"):
+    FAIL.append("A16")
+
+print()
+_zdir = pathlib.Path(tempfile.gettempdir()) / "ocferry-ziptest"
+_zdir.mkdir(parents=True, exist_ok=True)
+_zp = _zdir / "t.zip"
+with zipfile.ZipFile(_zp, "w") as _zf:
+    _zf.writestr("app/hello.txt", "你好")
+    _zf.writestr("app/sub/x.bin", b"\x00\x01\x02")
+_out = _zdir / "out"
+_cnt = nf.extract_zip(str(_zp), str(_out))
+_txt = (_out / "app" / "hello.txt").read_text(encoding="utf-8")
+print(f"  A17 extract_zip 往返: {_cnt} 个文件, hello.txt={_txt!r}")
+if _cnt != 2 or _txt != "你好" or not (_out / "app" / "sub" / "x.bin").is_file():
+    FAIL.append("A17")
+
+print()
+_p = src.resolve_payload({"FERRY_PAYLOAD_URL": "https://example.com/a.zip"})
+print(f"  A18 resolve_payload 覆盖 -> {_p['url']}")
+if _p["url"] != "https://example.com/a.zip":
+    FAIL.append("A18")
+_o = src.resolve_opencode({"FERRY_OPENCODE_TARBALL": "https://example.com/o.tgz"})
+print(f"  A19 resolve_opencode 覆盖 -> {_o['url']}")
+if _o["url"] != "https://example.com/o.tgz":
+    FAIL.append("A19")
+
+# 进度节流：六百多次回调不能变成六百多次 evaluate_js；但收尾那一次
+# 必须推得出去，否则进度条会永久停在 99%。
+print()
+_api2 = mod.Api()
+_pushed = []
+_api2._js = lambda fn, *a: _pushed.append(a)
+_cb = _api2._progress(0, 100, "测试")
+for _i in range(1001):
+    _cb(_i * 1000, 1000000)
+print(f"  A20 _progress 节流: 1001 次回调 -> {len(_pushed)} 次推送, 末值={_pushed[-1][0] if _pushed else None}")
+if not _pushed or len(_pushed) > 200 or _pushed[-1][0] != 100:
+    FAIL.append("A20")
 
 print()
 print("=" * 64)

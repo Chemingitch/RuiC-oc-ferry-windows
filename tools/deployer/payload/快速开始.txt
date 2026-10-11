@@ -1,0 +1,44 @@
+OC Ferry 0.3.0 - Windows 绿色便携版
+================================================
+
+【怎么用】
+双击本目录下的  启动 OC Ferry.bat
+
+【为什么必须用 .bat 启动，不能直接双击 app\OC Ferry.exe】
+启动脚本会做两件必要的事：
+  1. 把数据目录固定成 ./data —— 绿色便携，整个文件夹可整体搬迁，
+     不想要了直接删文件夹就是干净卸载。
+  2. 清除父进程可能带入的 ELECTRON_RUN_AS_NODE 变量。
+     不清掉的话，主程序在某些环境里会被当成纯 Node 运行，窗口起不来。
+
+【目录结构】
+  app\                 主程序（Electron，约 373 MB）
+  data\                运行时数据，首次启动自动生成
+  启动 OC Ferry.bat    启动入口
+  快速开始.txt          本文件
+
+【首次使用】
+  1. 启动后程序常驻系统托盘，右键托盘图标可退出。
+  2. 它会自动准备一份「隔离的」OpenCode 运行时（首次需要联网下载），
+     并在本机开一个 OpenAI 兼容的转发口。
+  3. 在 WorkBuddy 里导入 models.json，就能看到名字形如
+     「OC · 模型名」的条目，选中即可使用。
+
+【运行要求】
+  - Windows 10 / 11 (x64)
+  - 首次启动需要联网（下载 OpenCode 运行时）
+  - 界面依赖系统自带的 WebView2 运行时（Win11 及新版 Win10 已内置）
+
+【常见问题】
+  Q: 双击 .bat 后一闪而过没有窗口？
+  A: 说明 app\OC Ferry.exe 不完整。请重新完整解压压缩包，
+     不要只把 exe 单独复制出来。
+
+  Q: 杀掉进程后托盘图标残留？
+  A: 右键托盘图标选「退出 OC Ferry」，让它走正常退出流程。
+
+【来源与许可】
+  上游项目: https://github.com/HRuiCcc/RuiC-oc-ferry   (MIT)
+  本 Windows 构建: https://github.com/Chemingitch/RuiC-oc-ferry-windows
+  本包基于上游 v0.3.0 构建，并合入本 fork 的 Windows 改动：
+  托盘常驻、退出清理、便携数据目录。
