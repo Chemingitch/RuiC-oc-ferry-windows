@@ -390,20 +390,47 @@ class Api:
 
         return cb
 
-    def _download(self, url: str, dest_path: pathlib.Path, size: int,
+    def _download(self, urls, dest_path: pathlib.Path, size: int,
                   lo: float, hi: float, phase: str) -> None:
-        """下载到 dest_path；已有完整同名文件则直接跳过。
+        """下载到 dest_path。已有完整同名文件就跳过；失败则依次换备用线路。
 
-        「跳过」这一条是给重试用的：上一次跑到一半失败，这次不必重新下 150 MB。
+        urls 可以是单个地址，也可以是候选列表。主程序载荷会给两条：
+        github.com 的直链，以及 api.github.com 的资产端点。这两个域解析到
+        不同 IP，在国内的可达性并不同步 —— 多一条就多一分成功率。
+
+        「已存在就跳过」是给重试用的：上一次跑到一半失败，这次不必重新下 150 MB。
         """
+        if isinstance(urls, str):
+            urls = [urls]
+        urls = [u for u in urls if u]
+        if not urls:
+            raise FetchError("没有可用的下载地址")
+
         if size and dest_path.is_file() and dest_path.stat().st_size == size:
             self._log(f"{dest_path.name} 已存在且大小正确，跳过下载。", "ok")
             self._js("prog", hi, phase)
             return
-        self._log(f"下载 {dest_path.name} …", "cmd")
-        netfetch.http_download(url, str(dest_path), self._progress(lo, hi, phase))
-        self._log(f"下载完成 {human_size(dest_path.stat().st_size)}  ✓", "ok")
-        self._js("prog", hi, phase)
+
+        last: Exception | None = None
+        for idx, url in enumerate(urls):
+            # API 端点默认吐 JSON 元数据，得点名要 octet-stream 才给二进制
+            headers = {"Accept": "application/octet-stream"} if "api.github.com" in url else None
+            tag = f"（线路 {idx + 1}/{len(urls)}）" if len(urls) > 1 else ""
+            self._log(f"下载 {dest_path.name} …{tag}", "cmd")
+            try:
+                netfetch.http_download(url, str(dest_path),
+                                       self._progress(lo, hi, phase), headers=headers)
+            except FetchError as e:
+                last = e
+                # 换线路后，半截文件不再可信：不同服务的 Range 语义未必一致
+                dest_path.unlink(missing_ok=True)
+                if idx + 1 < len(urls):
+                    self._log("该线路连不上，改用备用线路重试 …", "warn")
+                continue
+            self._log(f"下载完成 {human_size(dest_path.stat().st_size)}  ✓", "ok")
+            self._js("prog", hi, phase)
+            return
+        raise FetchError(f"所有下载线路都失败了：{last}")
 
     # ------------------------------------------------------------ 主流程
     def _run(self, target: str) -> None:
@@ -471,7 +498,8 @@ class Api:
 
         zip_path = setup / payload["name"]
         try:
-            self._download(payload["url"], zip_path, payload["size"], 14, 62, "下载主程序")
+            self._download([payload["url"], payload.get("api_url")],
+                           zip_path, payload["size"], 14, 62, "下载主程序")
         except FetchError as e:
             return self._fail(2, f"下载失败：{e}")
 

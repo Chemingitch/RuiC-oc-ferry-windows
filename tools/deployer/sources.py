@@ -40,7 +40,7 @@ def resolve_payload(env: dict | None = None) -> dict:
     override = (env.get("FERRY_PAYLOAD_URL") or "").strip()
     if override:
         return {"name": os.path.basename(override.split("?")[0]) or "payload.zip",
-                "url": override, "size": 0, "source": "FERRY_PAYLOAD_URL"}
+                "url": override, "api_url": "", "size": 0, "source": "FERRY_PAYLOAD_URL"}
 
     api = f"https://api.github.com/repos/{RELEASE_REPO}/releases/latest"
     try:
@@ -67,7 +67,12 @@ def resolve_payload(env: dict | None = None) -> dict:
             url = asset.get("browser_download_url")
             if not url:
                 continue
-            return {"name": name, "url": url, "size": int(asset.get("size") or 0),
+            # 备用线路：GitHub 的资产下载端点（api.github.com）。
+            # browser_download_url 走 github.com，那个域在国内时常连不上，
+            # 而 api.github.com 往往还是通的 —— 两个域解析到的 IP 不一样。
+            # 带上 Accept: application/octet-stream 就能从 API 端点直接下二进制。
+            return {"name": name, "url": url, "api_url": asset.get("url") or "",
+                    "size": int(asset.get("size") or 0),
                     "source": f"GitHub Release {tag}"}
 
     have = ", ".join(a.get("name", "?") for a in (data.get("assets") or [])) or "（无附件）"
