@@ -1,0 +1,13 @@
+node_modules/
+release/
+.DS_Store
+*.log
+
+# 打包产物
+*.exe
+*.zip
+*.tgz
+dist/
+
+# 应用运行时数据（api-key / status.json / probe-cache.json / 托管的 opencode.exe 等）
+data/
