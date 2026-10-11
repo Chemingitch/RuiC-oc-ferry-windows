@@ -21,7 +21,8 @@
 > ① 最小化到托盘 ② 退出时清理 `opencode-cli.exe` 残留 ③ Windows 绿色版部署脚本。
 >
 > **如果你只是想要原版，请去上游仓库。** 上游只发布了 macOS 构建产物；
-> 本 fork 补的是 Windows 这一块。
+> 本 fork 补的是 Windows 这一块——Windows 专章见 **[docs/Windows-说明.md](docs/Windows-说明.md)**
+> （OpenCode 运行时存放规则、构建命令、缓存重试时长）。
 
 ---
 
