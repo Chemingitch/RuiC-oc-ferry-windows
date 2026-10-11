@@ -68,6 +68,34 @@ print(f"  A10 图标存在: {ico.exists()}")
 if not ico.exists():
     FAIL.append("A10")
 
+# ---- A11~A13：回归防护 ------------------------------------------------
+# 背景：pywebview 的 inject_pywebview() -> get_functions() 会 for name in dir(js_api)
+# 逐个 getattr 并把「非 callable 且有 __module__」的属性递归展开。
+# 一旦 js_api 上挂了 pywebview 自己的对象（哪怕只是 self.window），
+# 它就会顺着 Window.native 递归进 WinForms/COM 的整个 .NET 对象图，
+# 从后台线程跨套间读 WebView2 控件属性 -> 挂住并持有 GIL -> 窗口「未响应」。
+# 这三条断言就是防止这个坑被重新引入。
+print()
+exposed = dir(api)
+print(f"  A11 Api.__dir__() 暴露清单: {sorted(exposed)}")
+if sorted(exposed) != sorted(mod.Api.JS_METHODS):
+    print("       [FAIL] 暴露清单与 JS_METHODS 不一致")
+    FAIL.append("A11")
+
+leak = []
+for _name in exposed:
+    _val = getattr(api, _name, None)
+    if _val is not None and not callable(_val):
+        leak.append(f"{_name}={type(_val).__name__}")
+print(f"  A12 暴露项里的非 callable 泄漏: {leak or '无'}")
+if leak:
+    print("       [FAIL] 有框架对象会被 pywebview 递归内省")
+    FAIL.append("A12")
+
+print(f"  A13 内部窗口引用已下划线命名: {hasattr(api, '_window')}")
+if not hasattr(api, "_window"):
+    FAIL.append("A13")
+
 print()
 print("=" * 64)
 if FAIL:

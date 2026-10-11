@@ -612,10 +612,15 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSteps();
   log('OC Ferry Deployer 已就绪，等待指令。', 'cmd');
   log('提示：先在左侧选择部署位置，然后点击「开始部署」。', '');
-  // 延迟判断：DOMContentLoaded 时 pywebview 尚未注入，不能立刻下结论
+  // 2.5 秒还没连上：先温和提示（可能只是初始化慢）
+  setTimeout(() => { if(!apiReady) log('等待后端连接 …', ''); }, 2500);
+  // 12 秒仍未连上：初始化确实出了问题，明确报错而不是静默干等
   setTimeout(() => {
-    if(!apiReady) log('（原型模式）未检测到后端，仅界面演示可用。', 'warn');
-  }, 2500);
+    if(!apiReady){
+      log('未检测到后端连接。界面可能已失去响应，请关闭窗口后重新打开。', 'err');
+      setStatus('err', '初始化异常');
+    }
+  }, 12000);
 });
 </script>
 </body>
