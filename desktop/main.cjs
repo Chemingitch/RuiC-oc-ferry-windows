@@ -185,7 +185,12 @@ else {
   });
   app.whenReady().then(async () => {
     const { dataDirectory } = await import('../src/platform.js');
-    dataDir = process.env.FERRY_DATA_DIR || dataDirectory();
+    // 便携模式：exe 同目录下存在 data 文件夹就用它——「装到哪，数据就在哪」，
+    // 整个安装目录可整体搬迁，删除即卸载。安装包会预建这个目录。
+    // 优先级：FERRY_DATA_DIR > exe 旁的 data > 系统默认（%APPDATA%\OC Ferry）。
+    const beside = path.join(path.dirname(process.execPath), 'data');
+    const portable = await fs.stat(beside).then(s => (s.isDirectory() ? beside : null), () => null);
+    dataDir = process.env.FERRY_DATA_DIR || portable || dataDirectory();
     Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'OC Ferry', submenu: [{ label: '最小化到托盘', accelerator: 'CmdOrCtrl+M', click: () => hideToTray() }, { type: 'separator' }, { label: '退出 OC Ferry', role: 'quit' }] }, { label: '编辑', submenu: [{ label: '复制', role: 'copy' }, { label: '全选', role: 'selectAll' }] }]));
     app.setPath('userData', dataDir);
     ipcMain.handle('action', async (event, name, value) => {
