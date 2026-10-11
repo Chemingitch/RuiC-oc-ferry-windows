@@ -254,13 +254,29 @@ python pack_payload.py <OC-Ferry的app目录> ../release/OC-Ferry-0.3.0-win-x64.
 # 3) 发布前先验压缩包本身能跑
 python smoke_payload.py ../release/OC-Ferry-0.3.0-win-x64.zip /tmp/smoke --via-bat
 
-# 4) 发到 GitHub Release（自动把 sha256 写进 release notes）
-GH=/path/to/gh ./publish-release.sh ../release/OC-Ferry-0.3.0-win-x64.zip
+# 4) 发到 GitHub Release（自动算 sha256/大小填进 notes，正文取自 release-notes.md）
+GH=/path/to/gh ./publish-release.sh ../release/OC-Ferry-0.3.0-win-x64.zip \
+    v0.3.0-win dist/OC-Ferry-Deployer.exe
 
 # 5) 端到端验收：跑完整部署，再验证装出来的目录能启动
 python e2e_test.py /tmp/installed --live
 python smoke_payload.py /tmp/installed --reuse
 ```
+
+第 4 步的说明正文在 `release-notes.md`，用 `{{PAYLOAD_SHA256}}` 这类占位符 ——
+文件名、大小、校验值都由脚本现算，避免手填写错；而部署器正是按「资产名」去
+下载的，名字一旦对不上就拉不到包。
+
+### 网络受限时怎么推送
+
+某些网络下 `github.com:443` 会间歇性不可达，但 `api.github.com` 仍然通（两者解析
+到不同 IP）。这时 `git push` 会失败，而仓库内容其实可以走 Git Data API 上传：
+blob → tree → commit → 更新 ref，并原样带上本地的 author/committer/message，
+算出来的 commit sha 与本地完全一致，历史不会分叉。
+
+一个容易踩的坑：**不要用 `git ls-files` 或直接读工作区文件来取内容** ——
+那是最终状态，拿它去建中间 commit 会把后续提交的内容一起塞进去，两个 commit
+会被压成同一个 tree。必须用 `git show <sha>:<path>` 取**那个 commit 当时**的版本。
 
 ### 批处理编码
 
