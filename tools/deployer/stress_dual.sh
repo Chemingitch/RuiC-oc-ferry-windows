@@ -11,6 +11,11 @@ D2="E:/C/CTools/AI Make/OC-Ferry-build/deployer/dist"
 N=${1:-8}
 BAD=0
 
+# 关键：先把最新构建同步到测试目录。
+# （踩过坑：测试目录里的 exe 不更新，会导致整轮测试跑的都是旧版本。）
+mkdir -p "$D1"
+cp -f "$D2/OC-Ferry-Deployer.exe" "$D1/"
+
 for i in $(seq 1 "$N"); do
   taskkill //F //IM OC-Ferry-Deployer.exe >/dev/null 2>&1
   sleep 2
