@@ -11,3 +11,9 @@ dist/
 
 # 应用运行时数据（api-key / status.json / probe-cache.json / 托管的 opencode.exe 等）
 data/
+
+# 部署器（tools/deployer）的构建缓存与中间产物
+__pycache__/
+*.pyc
+*.spec
+tools/deployer/build/

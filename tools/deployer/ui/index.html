@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OC Ferry Deployer</title>
+<style>
+  :root{
+    /* 底色：整体压深，作为绝对主体 */
+    --bg:#05070e;
+    --bg2:#080c16;
+    --panel:rgba(10,16,28,.80);
+    --panel-line:rgba(0,229,255,.10);
+    /* 点缀色：只用在需要被看见的地方 */
+    --cyan:#00e5ff;
+    --cyan-dim:#0a7d92;
+    --edge:#7feaff;
+    --ok:#00ffa3;
+    --warn:#ffb020;
+    --err:#ff4d6d;
+    --txt:#c6d6ec;
+    --dim:#4d5f80;
+    --dim2:#2c3a54;
+    --mono:'Cascadia Mono','Consolas','Sarasa Mono SC',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--bg);
+    color:var(--txt);
+    font-family:'Segoe UI','Microsoft YaHei UI',system-ui,sans-serif;
+    font-size:13px;
+    -webkit-font-smoothing:antialiased;
+    user-select:none;
+  }
+
+  /* ---------- 背景层：只留一点"仪器感"，不抢戏 ---------- */
+  .bg-grid,.bg-glow,.bg-scan,.bg-flow{position:fixed;inset:0;pointer-events:none}
+  .bg-grid{
+    background-image:
+      linear-gradient(rgba(0,229,255,.026) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,229,255,.026) 1px,transparent 1px);
+    background-size:44px 44px;
+    animation:gridDrift 36s linear infinite;
+    mask-image:radial-gradient(ellipse 90% 80% at 50% 40%,#000 20%,transparent 100%);
+    -webkit-mask-image:radial-gradient(ellipse 90% 80% at 50% 40%,#000 20%,transparent 100%);
+  }
+  @keyframes gridDrift{from{background-position:0 0}to{background-position:44px 44px}}
+
+  .bg-glow::before,.bg-glow::after{content:'';position:absolute;border-radius:50%;filter:blur(120px);opacity:.24}
+  .bg-glow::before{width:460px;height:460px;left:-120px;top:-160px;background:radial-gradient(circle,rgba(0,229,255,.10),transparent 70%)}
+  .bg-glow::after{width:480px;height:480px;right:-140px;bottom:-200px;background:radial-gradient(circle,rgba(0,170,210,.07),transparent 70%)}
+
+  .bg-scan::before{
+    content:'';position:absolute;left:0;right:0;height:180px;
+    background:linear-gradient(180deg,transparent,rgba(0,229,255,.030),transparent);
+    animation:scanDown 7s ease-in-out infinite;
+  }
+  @keyframes scanDown{0%{transform:translateY(-200px)}100%{transform:translateY(110vh)}}
+
+  .bg-flow::before,.bg-flow::after{
+    content:'';position:absolute;top:0;bottom:0;width:1px;
+    background:linear-gradient(180deg,transparent,rgba(0,229,255,.26),transparent);
+    animation:flowDown 4.5s linear infinite;
+  }
+  .bg-flow::before{left:26%}
+  .bg-flow::after{left:74%;animation-delay:2.2s}
+  @keyframes flowDown{0%{transform:translateY(-100%)}100%{transform:translateY(100%)}}
+
+  /* ---------- 主容器 ---------- */
+  .app{
+    position:relative;height:100%;display:flex;flex-direction:column;
+    padding:0;
+  }
+
+  /* 顶栏 */
+  header{
+    display:flex;align-items:center;gap:14px;
+    padding:16px 26px;
+    border-bottom:1px solid var(--panel-line);
+    background:linear-gradient(180deg,rgba(7,11,20,.92),rgba(7,11,20,.38));
+    backdrop-filter:blur(12px);
+  }
+  .logo{
+    width:34px;height:34px;flex:0 0 34px;position:relative;
+    display:grid;place-items:center;
+  }
+  .logo svg{width:34px;height:34px;filter:drop-shadow(0 0 7px rgba(0,229,255,.42))}
+  .logo .ring{
+    position:absolute;inset:-4px;border-radius:50%;
+    border:1px solid rgba(0,229,255,.28);
+    border-top-color:var(--cyan);
+    animation:spin 3.4s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .brand{display:flex;flex-direction:column;gap:1px}
+  .brand b{font-size:14px;letter-spacing:2.6px;font-weight:600}
+  .brand span{font-family:var(--mono);font-size:10px;letter-spacing:1.4px;color:var(--dim)}
+
+  .hdr-right{margin-left:auto;display:flex;align-items:center;gap:18px}
+  .meter{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .meter i{font-style:normal;font-family:var(--mono);font-size:9px;letter-spacing:1.2px;color:var(--dim2)}
+  .meter b{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--dim)}
+
+  .status{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;letter-spacing:.8px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);position:relative}
+  .status.ready .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .status.ready .dot::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:1px solid var(--ok);animation:ping 2s ease-out infinite}
+  .status.busy .dot{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+  .status.err  .dot{background:var(--err);box-shadow:0 0 8px var(--err)}
+  @keyframes ping{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+
+  .win-ctrl{display:flex;align-items:center;gap:6px}
+  .wc{
+    width:27px;height:27px;padding:0;border-radius:5px;cursor:pointer;
+    border:1px solid rgba(0,229,255,.12);background:rgba(0,229,255,.03);
+    color:var(--dim);display:grid;place-items:center;transition:.2s;
+  }
+  .wc:hover{color:var(--cyan);border-color:rgba(0,229,255,.40);background:rgba(0,229,255,.08)}
+  .wc-close:hover{color:var(--err);border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.09)}
+
+  /* 主体两栏 */
+  main{
+    flex:1;display:grid;grid-template-columns:1fr 1.06fr;
+    gap:0;min-height:0;
+  }
+  .col{padding:26px 26px 20px;min-height:0;display:flex;flex-direction:column}
+  .col.left{border-right:1px solid var(--panel-line)}
+
+  /* 标题区 —— 文字即点缀，渐变收窄 */
+  .hero h1{
+    font-size:23px;font-weight:600;letter-spacing:.4px;line-height:1.32;
+    background:linear-gradient(92deg,#ffffff 0%,#a9e6ff 48%,var(--cyan) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    margin-bottom:7px;
+  }
+  .hero p{font-size:12px;color:var(--dim);line-height:1.7;letter-spacing:.2px}
+  .hero code{font-family:var(--mono);font-size:11px;color:var(--cyan);background:rgba(0,229,255,.06);
+    border:1px solid rgba(0,229,255,.14);border-radius:3px;padding:1px 6px}
+
+  /* 目标路径选择 */
+  .target{margin-top:18px}
+  .target label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:1.5px;color:var(--dim2);margin-bottom:7px}
+  .path-box{
+    display:flex;align-items:center;gap:10px;
+    background:rgba(255,255,255,.022);
+    border:1px solid rgba(0,229,255,.14);
+    border-radius:6px;padding:9px 12px;
+    transition:border-color .25s,box-shadow .25s;
+  }
+  .path-box:hover{border-color:rgba(0,229,255,.32);box-shadow:0 0 20px -9px rgba(0,229,255,.55)}
+  .path-box svg{flex:0 0 14px;opacity:.6}
+  .path-box .val{flex:1;font-family:var(--mono);font-size:11.5px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .path-box .val.empty{color:var(--dim2)}
+  .browse{
+    flex:0 0 auto;font-family:var(--mono);font-size:10px;letter-spacing:.8px;
+    color:var(--cyan);background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.24);
+    border-radius:4px;padding:4px 10px;cursor:pointer;transition:.2s;
+  }
+  .browse:hover{background:rgba(0,229,255,.13);box-shadow:0 0 12px -3px rgba(0,229,255,.6)}
+
+  /* 步骤 */
+  .steps{margin-top:22px;flex:1;overflow:auto;padding-right:4px}
+  .steps::-webkit-scrollbar{width:4px}
+  .steps::-webkit-scrollbar-thumb{background:rgba(0,229,255,.16);border-radius:2px}
+  .step{
+    display:flex;gap:13px;position:relative;padding-bottom:17px;
+  }
+  .step:last-child{padding-bottom:0}
+  .step .rail{position:relative;flex:0 0 18px;display:flex;justify-content:center}
+  .step .rail::after{
+    content:'';position:absolute;top:19px;bottom:-17px;width:1px;
+    background:linear-gradient(180deg,rgba(0,229,255,.16),rgba(0,229,255,.03));
+  }
+  .step:last-child .rail::after{display:none}
+  .step.done .rail::after{background:linear-gradient(180deg,rgba(0,255,163,.42),rgba(0,229,255,.08))}
+  .node{
+    width:17px;height:17px;border-radius:50%;flex:0 0 17px;margin-top:1px;
+    border:1px solid var(--dim2);background:rgba(6,10,19,.9);
+    display:grid;place-items:center;position:relative;z-index:1;
+    transition:.3s;
+  }
+  .node i{width:5px;height:5px;border-radius:50%;background:var(--dim2);transition:.3s}
+  .step.active .node{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.09),0 0 14px rgba(0,229,255,.5)}
+  .step.active .node i{background:var(--cyan);animation:blink 1.1s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+  .step.done .node{border-color:var(--ok);background:rgba(0,255,163,.08)}
+  .step.done .node i{background:var(--ok)}
+  .step.fail .node{border-color:var(--err);background:rgba(255,77,109,.10)}
+  .step.fail .node i{background:var(--err)}
+
+  .step .body{flex:1;min-width:0}
+  .step .name{font-size:12.5px;letter-spacing:.25px;color:var(--dim);transition:.3s}
+  .step.active .name{color:#fff}
+  .step.done .name{color:var(--txt)}
+  .step .sub{font-family:var(--mono);font-size:10px;color:var(--dim2);margin-top:3px;letter-spacing:.4px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:.3s}
+  .step.active .sub{color:var(--cyan-dim)}
+  .step.done .sub{color:#3d6a5c}
+
+  /* 日志终端 */
+  .log-head{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+  .log-head .t{font-family:var(--mono);font-size:9.5px;letter-spacing:1.6px;color:var(--dim2)}
+  .log-head .ln{flex:1;height:1px;background:linear-gradient(90deg,rgba(0,229,255,.14),transparent)}
+  .log-head .clr{font-family:var(--mono);font-size:9.5px;color:var(--dim2);cursor:pointer;letter-spacing:.6px}
+  .log-head .clr:hover{color:var(--cyan)}
+
+  .terminal{
+    flex:1;min-height:0;overflow:auto;
+    background:rgba(3,6,12,.62);
+    border:1px solid rgba(0,229,255,.09);border-radius:7px;
+    padding:13px 14px;
+    font-family:var(--mono);font-size:11px;line-height:1.85;
+    box-shadow:inset 0 0 40px -22px rgba(0,229,255,.28);
+  }
+  .terminal::-webkit-scrollbar{width:5px}
+  .terminal::-webkit-scrollbar-thumb{background:rgba(0,229,255,.16);border-radius:3px}
+  .ln-row{display:flex;gap:9px;animation:lnIn .26s ease-out}
+  @keyframes lnIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .ln-row .ts{color:#22304a;flex:0 0 auto}
+  .ln-row .msg{color:var(--dim);word-break:break-all;flex:1}
+  .ln-row.ok .msg{color:var(--ok)}
+  .ln-row.warn .msg{color:var(--warn)}
+  .ln-row.err .msg{color:var(--err)}
+  .ln-row.cmd .msg{color:var(--cyan)}
+  .ln-row.hi .msg{color:#fff}
+  .cursor{display:inline-block;width:7px;height:12px;background:var(--cyan);vertical-align:-2px;
+    animation:blink 1s steps(1) infinite;margin-left:2px}
+
+  /* 底部进度条 */
+  footer{
+    padding:14px 26px 20px;
+    border-top:1px solid var(--panel-line);
+    background:linear-gradient(0deg,rgba(7,11,20,.94),rgba(7,11,20,.34));
+    backdrop-filter:blur(12px);
+  }
+  .bar-meta{display:flex;align-items:baseline;gap:12px;margin-bottom:9px}
+  .bar-meta .lbl{font-family:var(--mono);font-size:10px;letter-spacing:1.3px;color:var(--dim2)}
+  .bar-meta .now{font-size:12px;color:var(--txt);letter-spacing:.3px}
+  .bar-meta .pct{margin-left:auto;font-family:var(--mono);font-size:17px;font-weight:600;color:var(--cyan);
+    text-shadow:0 0 14px rgba(0,229,255,.34);font-variant-numeric:tabular-nums}
+  .bar-meta .pct small{font-size:10px;color:var(--dim2);margin-left:1px}
+
+  .bar{
+    position:relative;height:7px;border-radius:4px;overflow:hidden;
+    background:rgba(255,255,255,.045);
+    border:1px solid rgba(0,229,255,.11);
+  }
+  .bar .fill{
+    position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:4px;
+    background:linear-gradient(90deg,var(--cyan-dim),var(--cyan) 55%,var(--edge));
+    box-shadow:0 0 14px rgba(0,229,255,.42);
+    transition:width .55s cubic-bezier(.4,0,.2,1);
+  }
+  .bar .fill::after{
+    content:'';position:absolute;inset:0;
+    background:repeating-linear-gradient(115deg,transparent 0 9px,rgba(255,255,255,.20) 9px 15px);
+    animation:stripe 1s linear infinite;
+  }
+  @keyframes stripe{to{transform:translateX(24px)}}
+  .bar .glow{position:absolute;top:0;bottom:0;width:90px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
+    animation:slider 2.4s ease-in-out infinite}
+  @keyframes slider{0%{left:-90px}100%{left:100%}}
+
+  .actions{display:flex;align-items:center;gap:12px;margin-top:15px}
+  .btn{
+    font-family:inherit;font-size:12.5px;letter-spacing:.5px;cursor:pointer;
+    border-radius:6px;padding:10px 26px;border:1px solid transparent;transition:.22s;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:disabled{opacity:.32;cursor:not-allowed}
+  .btn-primary{
+    color:#04121a;font-weight:600;
+    background:linear-gradient(96deg,var(--cyan) 0%,#5ceeff 58%,var(--edge) 100%);
+    box-shadow:0 0 20px -7px rgba(0,229,255,.6);
+  }
+  .btn-primary:not(:disabled):hover{box-shadow:0 0 28px -4px rgba(0,229,255,.75);transform:translateY(-1px)}
+  .btn-ghost{
+    color:var(--dim);background:transparent;border-color:rgba(0,229,255,.18);
+  }
+  .btn-ghost:not(:disabled):hover{color:var(--cyan);border-color:rgba(0,229,255,.42);background:rgba(0,229,255,.04)}
+  .hint{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:.4px}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="bg-scan"></div>
+<div class="bg-flow"></div>
+
+<div class="app">
+  <!-- 顶栏 -->
+  <header class="pywebview-drag-region" id="titlebar">
+    <div class="logo">
+      <svg viewBox="0 0 40 40" fill="none">
+        <path d="M20 3 L34 11.5 L34 28.5 L20 37 L6 28.5 L6 11.5 Z"
+              stroke="#00e5ff" stroke-width="1.6" fill="rgba(0,229,255,.06)"/>
+        <path d="M20 11 L27 15 L27 25 L20 29 L13 25 L13 15 Z"
+              stroke="#7feaff" stroke-width="1.2" fill="rgba(127,234,255,.08)"/>
+        <circle cx="20" cy="20" r="2.6" fill="#00e5ff"/>
+      </svg>
+      <span class="ring"></span>
+    </div>
+    <div class="brand">
+      <b>OC FERRY</b>
+      <span>DEPLOYER · v1.0.0</span>
+    </div>
+    <div class="hdr-right">
+      <div class="meter">
+        <i>RUNTIME</i>
+        <b id="rt-ver">opencode · 待检测</b>
+      </div>
+      <div class="meter">
+        <i>PLATFORM</i>
+        <b id="plat">win-x64</b>
+      </div>
+      <div class="status ready" id="status">
+        <span class="dot"></span><span id="status-txt">就绪</span>
+      </div>
+      <div class="win-ctrl" onmousedown="event.stopPropagation()">
+        <button class="wc" id="wc-min" title="最小化">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5 H8" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+        </button>
+        <button class="wc wc-close" id="wc-close" title="关闭">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2.4 2.4 L7.6 7.6 M7.6 2.4 L2.4 7.6" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体 -->
+  <main>
+    <div class="col left">
+      <div class="hero">
+        <h1>部署本地 AI 运行时</h1>
+        <p>自动获取 OpenCode 最新运行时，展开 OC Ferry 主程序，<br>并写入可用模型配置 —— 一步到位。</p>
+      </div>
+
+      <div class="target">
+        <label>部署位置 / TARGET DIRECTORY</label>
+        <div class="path-box">
+          <svg viewBox="0 0 16 16" fill="none" stroke="#00e5ff" stroke-width="1.3">
+            <path d="M1.5 4.5 A1 1 0 0 1 2.5 3.5 H6 L7.4 5.2 H13.5 A1 1 0 0 1 14.5 6.2 V11.5 A1 1 0 0 1 13.5 12.5 H2.5 A1 1 0 0 1 1.5 11.5 Z"/>
+          </svg>
+          <span class="val empty" id="target-path">尚未选择 —— 点击右侧浏览</span>
+          <button class="browse" id="btn-browse">浏览…</button>
+        </div>
+      </div>
+
+      <div class="steps" id="steps"></div>
+    </div>
+
+    <div class="col right">
+      <div class="log-head">
+        <span class="t">DEPLOY LOG</span>
+        <span class="ln"></span>
+        <span class="clr" id="btn-clear">清空</span>
+      </div>
+      <div class="terminal" id="terminal"></div>
+    </div>
+  </main>
+
+  <!-- 底部 -->
+  <footer>
+    <div class="bar-meta">
+      <span class="lbl">STATUS</span>
+      <span class="now" id="phase-now">等待开始</span>
+      <span class="pct" id="pct">0<small>%</small></span>
+    </div>
+    <div class="bar">
+      <div class="fill" id="fill"></div>
+      <div class="glow"></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-start" disabled>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5 L13 8 L4 13.5 Z"/></svg>
+        开始部署
+      </button>
+      <button class="btn btn-ghost" id="btn-later">稍后</button>
+      <span class="hint" id="hint">目标机无需安装 Python / Node</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ============ 步骤定义 ============ */
+const STEPS = [
+  { key:'env',   name:'检测运行环境',      sub:'扫描系统版本与 WebView2 运行时' },
+  { key:'dir',   name:'校验部署位置',      sub:'检查写入权限与磁盘空间' },
+  { key:'fetch', name:'获取 OpenCode 运行时', sub:'从官方源解析最新稳定版本' },
+  { key:'unpack',name:'展开 OC Ferry 主程序', sub:'释放应用文件与便携数据目录' },
+  { key:'conf',  name:'写入模型配置',      sub:'生成 models.json 与免费模型清单' },
+  { key:'link',  name:'创建启动入口',      sub:'生成快捷方式与启动脚本' },
+];
+
+/* ============ DOM ============ */
+const $ = id => document.getElementById(id);
+const stepsEl = $('steps'), termEl = $('terminal');
+let stepNodes = [];
+
+function renderSteps(){
+  stepsEl.innerHTML = '';
+  stepNodes = STEPS.map(s => {
+    const el = document.createElement('div');
+    el.className = 'step';
+    el.innerHTML = `<div class="rail"><div class="node"><i></i></div></div>
+      <div class="body"><div class="name">${s.name}</div><div class="sub">${s.sub}</div></div>`;
+    stepsEl.appendChild(el);
+    return el;
+  });
+  setStep(0, 'active');
+}
+function setStep(i, state){
+  const el = stepNodes[i]; if(!el) return;
+  el.classList.remove('active','done','fail');
+  if(state) el.classList.add(state);
+}
+
+/* ============ 日志 ============ */
+let logCount = 0;
+function ts(){
+  const d = new Date();
+  return [d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+}
+function log(msg, cls=''){
+  const row = document.createElement('div');
+  row.className = 'ln-row ' + cls;
+  row.innerHTML = `<span class="ts">${ts()}</span><span class="msg"></span>`;
+  row.querySelector('.msg').textContent = msg;
+  termEl.appendChild(row);
+  termEl.scrollTop = termEl.scrollHeight;
+  logCount++;
+}
+function setStatus(mode, txt){
+  $('status').className = 'status ' + mode;
+  $('status-txt').textContent = txt;
+}
+function setProgress(p, phase){
+  p = Math.max(0, Math.min(100, p));
+  $('fill').style.width = p + '%';
+  $('pct').innerHTML = Math.round(p) + '<small>%</small>';
+  if(phase) $('phase-now').textContent = phase;
+}
+
+/* ============ 目标目录 ============ */
+let targetDir = '';
+function setTarget(p){
+  targetDir = p;
+  const el = $('target-path');
+  el.textContent = p;
+  el.classList.remove('empty');
+  $('btn-start').disabled = false;
+}
+
+/* ============ 后端连接 ============ */
+// 注意：pywebview 的 api 对象在 DOMContentLoaded 时尚未注入，
+// 必须等 pywebviewready，否则调用会被静默吞掉（曾导致环境信息读不到）。
+let apiReady = false;
+function api(){ return (apiReady && window.pywebview && window.pywebview.api) || null; }
+function inWebview(){ return !!(window.pywebview); }
+
+function onBackendReady(){
+  if(apiReady) return;
+  apiReady = true;
+  window.pywebview.api.env_info().then(r => {
+    if(r){
+      $('rt-ver').textContent = r.runtime;
+      $('plat').textContent = r.platform;
+      log('后端已连接 · WebView2 ' + (r.webview2 || '?'), 'ok');
+    }
+  }).catch(e => log('读取环境信息失败: ' + e, 'warn'));
+}
+
+// 主路径：pywebview 注入完成后派发该事件
+window.addEventListener('pywebviewready', onBackendReady);
+
+// 兜底：该事件可能早于上面的监听注册（竞态已实测复现），
+// 因此再挂一个轮询，谁先到用谁。
+(function poll(n){
+  if(apiReady) return;
+  if(window.pywebview && window.pywebview.api){ onBackendReady(); return; }
+  if(n <= 0) return;
+  setTimeout(() => poll(n - 1), 100);
+})(100);
+
+$('btn-browse').onclick = async () => {
+  const a = api();
+  if(a){
+    const r = await a.pick_directory();
+    if(r) { setTarget(r); log('已选择部署位置: ' + r, 'hi'); }
+  } else if(inWebview()){
+    log('后端尚未就绪，请稍候一秒再试', 'warn');
+  } else {
+    // 纯浏览器预览时的演示分支
+    setTarget('D:\\Apps\\OC-Ferry');
+    log('（原型模式）已选择部署位置: D:\\Apps\\OC-Ferry', 'hi');
+  }
+};
+
+$('btn-clear').onclick = () => { termEl.innerHTML=''; };
+
+$('btn-later').onclick = async () => {
+  const a = api();
+  if(a) await a.quit_app();
+  else log('（原型模式）将关闭窗口', 'warn');
+};
+
+/* 自绘窗口控制 */
+$('wc-min').onclick = () => { const a = api(); if(a) a.minimize(); };
+$('wc-close').onclick = async () => {
+  const a = api();
+  if(a) await a.quit_app();
+  else log('（原型模式）关闭窗口', 'warn');
+};
+
+$('btn-start').onclick = async () => {
+  if(!targetDir){ log('请先选择部署位置', 'err'); return; }
+  const a = api();
+  if(a){
+    // 真实模式：交给 Python 执行，进度通过 evaluate_js 回推
+    $('btn-start').disabled = true;
+    await a.start_deploy(targetDir);
+  } else {
+    demoRun();   // 原型模式：本地演出
+  }
+};
+
+/* ============ 原型演示流程 ============ */
+let demoTimer = null;
+function demoRun(){
+  resetAll();
+  $('btn-start').disabled = true;
+  setStatus('busy','部署中');
+  log('OC Ferry Deployer v1.0.0 启动', 'hi');
+  log('目标目录: ' + targetDir, 'cmd');
+  log('—'.repeat(34), '');
+
+  const script = [
+    // [stepIndex, 延迟ms, 日志文本, 类别, 进度, 阶段名]
+    [0, 500,  '检测系统版本 …', 'cmd', 2, '检测运行环境'],
+    [0, 420,  'Windows 11 (Build 26100)  ✓ 满足要求', 'ok', 5, ''],
+    [0, 380,  'WebView2 Runtime 153.0.4234.32  ✓ 已就绪', 'ok', 8, ''],
+    [0, 300,  '', '', 10, '校验部署位置'],
+    [1, 420,  '检查目标目录写入权限 …', 'cmd', 13, ''],
+    [1, 380,  '磁盘可用空间 412.6 GB  ✓ 充足', 'ok', 16, ''],
+    [1, 300,  '', '', 18, '获取运行时'],
+    [2, 500,  '查询 opencode 最新版本 …', 'cmd', 22, ''],
+    [2, 460,  'registry: npm → opencode-windows-x64', 'cmd', 26, ''],
+    [2, 500,  '最新稳定版 1.19.0  →  准备下载 (180.4 MB)', 'ok', 32, ''],
+    [2, 620,  '[████████░░░░░░░░░░░░]  42.1 / 180.4 MB   2.4 MB/s', '', 38, ''],
+    [2, 620,  '[████████████████░░░░]  148.7 / 180.4 MB   6.1 MB/s', '', 46, ''],
+    [2, 520,  '下载完成  校验 SHA-256 …  ✓ 通过', 'ok', 52, ''],
+    [3, 520,  '展开 OC Ferry 主程序 (373 MB) …', 'cmd', 58, '展开主程序'],
+    [3, 560,  '释放 app/resources/app.asar  ✓', 'ok', 66, ''],
+    [3, 520,  '创建便携数据目录 data/  ✓', 'ok', 72, ''],
+    [4, 480,  '拉取可用模型清单 …', 'cmd', 78, '写入配置'],
+    [4, 520,  '发现 11 个免费模型，8 个可用', 'ok', 84, ''],
+    [4, 420,  '写入 models.json  ✓', 'ok', 88, ''],
+    [5, 420,  '创建快捷方式 → 桌面', 'cmd', 92, '创建入口'],
+    [5, 400,  '生成 启动 OC Ferry.bat  ✓', 'ok', 96, ''],
+    [5, 420,  '清理临时文件 …', '', 99, ''],
+    [5, 500,  '部署完成  用时 47.3 秒', 'hi', 100, '全部完成'],
+  ];
+
+  let i = 0, lastStep = -1;
+  function tick(){
+    if(i >= script.length){
+      setStatus('ready','已完成');
+      $('btn-start').disabled = false;
+      $('btn-start').innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5 L13 8 L4 13.5 Z"/></svg> 再次部署';
+      log('—'.repeat(34), '');
+      log('提示：目标机无需安装 Python / Node，双击启动脚本即可运行。', 'warn');
+      return;
+    }
+    const [si, delay, text, cls, prog, phase] = script[i];
+    if(si !== lastStep){
+      if(lastStep >= 0) setStep(lastStep, 'done');
+      setStep(si, 'active');
+      lastStep = si;
+    }
+    if(text) log(text, cls);
+    setProgress(prog, phase);
+    i++;
+    demoTimer = setTimeout(tick, delay);
+  }
+  tick();
+}
+function resetAll(){
+  clearTimeout(demoTimer);
+  termEl.innerHTML = ''; logCount = 0;
+  renderSteps(); setProgress(0,'等待开始'); setStatus('ready','就绪');
+  logCount = 0;
+}
+
+/* ============ Python 端回调接口 ============ */
+window.dep = {
+  log:   (m, c) => log(m, c || ''),
+  step:  (i, s) => setStep(i, s),
+  prog:  (p, ph) => setProgress(p, ph),
+  status:(m, t) => setStatus(m, t),
+  env:   (v, plat) => { $('rt-ver').textContent = v; $('plat').textContent = plat; },
+  done:  () => {
+    setStatus('ready','已完成');
+    const b = $('btn-start'); b.disabled = false;
+    b.innerHTML = '部署完成';
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderSteps();
+  log('OC Ferry Deployer 已就绪，等待指令。', 'cmd');
+  log('提示：先在左侧选择部署位置，然后点击「开始部署」。', '');
+  // 延迟判断：DOMContentLoaded 时 pywebview 尚未注入，不能立刻下结论
+  setTimeout(() => {
+    if(!apiReady) log('（原型模式）未检测到后端，仅界面演示可用。', 'warn');
+  }, 2500);
+});
+</script>
+</body>
+</html>

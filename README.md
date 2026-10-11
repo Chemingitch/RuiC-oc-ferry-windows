@@ -88,6 +88,26 @@ flowchart LR
 - **想重新验证**：点「检测全部」强制重测一轮；只想重测某一个，在它的详情里点「只重测这一个」。
 - **主题**：工具栏右上角可在**系统 / 浅色 / 深色**之间切换，选择会记住。
 
+## 一键部署器（Windows）
+
+`tools/deployer/` 下附带一个独立的 Windows 部署器，目标是让用户选一个目录、
+点一下按钮，就把主程序与 OpenCode 运行时都装好。
+
+- **单文件 exe**：约 13.5 MB，目标机不需要预装 Python / Node，双击即用
+- **无控制台窗口**：以 `WINDOWS_GUI` 子系统编译（PE Subsystem=2），系统不会分配控制台
+- **界面完全自绘**：pywebview + WebView2 无边框窗口，暗色科技风，无任何系统控件
+- **单实例保护**：重复双击只会激活已有窗口，不会并发跑两次部署
+- **子进程无黑框**：所有 `subprocess` 统一带 `CREATE_NO_WINDOW`
+
+**系统要求：Windows 10 1809+ / Windows 11。Windows 7 / 8 / 8.1 不受支持**
+（主程序基于 Electron，其 Chromium 与 WebView2 均已放弃 Win7）。
+
+> **当前状态**：界面、打包、运行环境适配已完成并通过测试；
+> 部署流程中「下载 OpenCode 运行时」「展开 OC Ferry 主程序」「写入模型配置」
+> 三步尚在开发中，界面中标记为 *待接入*。
+
+详见 [`tools/deployer/README.md`](tools/deployer/README.md)。
+
 ## 开发
 
 ```sh
