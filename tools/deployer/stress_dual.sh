@@ -15,6 +15,10 @@ BAD=0
 
 # 关键：先把最新构建同步到测试目录。
 # （踩过坑：测试目录里的 exe 不更新，会导致整轮测试跑的都是旧版本。）
+[ -f "$D2/OC-Ferry-Deployer.exe" ] || {
+  echo "✗ 找不到 $D2/OC-Ferry-Deployer.exe —— 先运行 build.py" >&2
+  exit 2
+}
 mkdir -p "$D1"
 cp -f "$D2/OC-Ferry-Deployer.exe" "$D1/"
 

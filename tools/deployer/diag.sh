@@ -15,6 +15,10 @@ OUT="$BASE/diag"
 
 export FERRY_TRACE=1
 
+[ -f "$DIST/OC-Ferry-Deployer.exe" ] || {
+  echo "✗ 找不到 $DIST/OC-Ferry-Deployer.exe —— 先运行 build.py" >&2
+  exit 2
+}
 mkdir -p "$OUT" "$TESTDIR"
 cp -f "$DIST/OC-Ferry-Deployer.exe" "$TESTDIR/"
 rm -f "$TMPDIR_WIN"/trace-*.log "$TMPDIR_WIN"/hb-*.log "$TMPDIR_WIN"/stage-*.log

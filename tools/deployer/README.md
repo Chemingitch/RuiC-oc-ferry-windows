@@ -68,6 +68,9 @@ python build.py
 # 产物：dist/OC-Ferry-Deployer.exe（约 13.5 MB）
 ```
 
+`build.py` 用**当前正在运行它的解释器**去调 PyInstaller，所以要先用同一个解释器装好：
+`pip install pyinstaller`。想指定别的解释器就 `PYTHON=/path/to/python.exe python build.py`。
+
 关键参数：
 
 ```

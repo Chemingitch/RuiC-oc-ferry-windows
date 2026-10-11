@@ -8,8 +8,11 @@ import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-PYROOT = pathlib.Path(r"E:\C\CTools\PythonTools\python")
-PYEXE = PYROOT / "python.exe"
+
+# 用「当前正在跑本脚本的解释器」来打包，避免硬编码绝对路径。
+# 前提：这个解释器里装好了 pyinstaller（pip install pyinstaller）。
+# 想换解释器也可以：PYTHON=/path/to/python.exe python build.py
+PYEXE = os.environ.get("PYTHON") or sys.executable
 
 NAME = "OC-Ferry-Deployer"
 

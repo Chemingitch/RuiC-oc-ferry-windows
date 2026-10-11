@@ -14,6 +14,12 @@ MODE=${2:-single}
 
 # 关键：先把最新构建同步到测试目录。
 # （踩过坑：测试目录里的 exe 不更新，会导致整轮测试跑的都是旧版本。）
+# 硬校验：dist 里没有产物就直接退出。
+# （踩过坑：拷贝失败只是打一行 cp 报错，脚本照跑，测的其实是上次剩下的旧 exe。）
+[ -f "$DIST/OC-Ferry-Deployer.exe" ] || {
+  echo "✗ 找不到 $DIST/OC-Ferry-Deployer.exe —— 先运行 build.py" >&2
+  exit 2
+}
 mkdir -p "$TESTDIR"
 cp -f "$DIST/OC-Ferry-Deployer.exe" "$TESTDIR/"
 
