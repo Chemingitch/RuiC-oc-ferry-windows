@@ -3,10 +3,12 @@
 #  用法: diag.sh <最大轮数>
 set -u
 
-PY="E:/C/CTools/PythonTools/python/python.exe"
-BASE="E:/C/CTools/AI Make/OC-Ferry-build/deployer"
-TESTDIR="/c/Users/Chemingitch/AppData/Local/Temp/ocferry-clean-test"
-TMPDIR_WIN="/c/Users/Chemingitch/AppData/Local/Temp/OC-Ferry-Deployer"
+# 路径自动定位 —— 脚本放哪都能跑，也方便别人 clone 下来直接用
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="${PYTHON:-python}"    # 需要装了 pywebview / pillow 的解释器
+BASE="$HERE"
+TESTDIR="${OCFERRY_TESTDIR:-/tmp/ocferry-clean-test}"
+TMPDIR_WIN="/tmp/OC-Ferry-Deployer"
 DIST="$BASE/dist"
 N=${1:-30}
 OUT="$BASE/diag"

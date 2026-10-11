@@ -47,7 +47,9 @@ tools/deployer/
 └── 调试-启动部署器.bat   # 开发态启动脚本
 ```
 
-> 脚本里的 `PY` / `BASE` / `TESTDIR` 是开发机路径，换机器需自行调整。
+> 所有 `*.sh` 都是**路径自定位**的（按脚本自身位置推导 `BASE`，测试目录落在系统临时目录），
+> clone 下来即可直接跑。两个可用环境变量覆盖默认值：
+> `PYTHON`（默认 `python`，需装有 pywebview / pillow）、`OCFERRY_TESTDIR`（默认 `/tmp/ocferry-clean-test`）。
 
 ## 开发态运行
 

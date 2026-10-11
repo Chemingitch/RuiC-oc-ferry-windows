@@ -2,9 +2,11 @@
 # 打包产物「干净目录」测试：模拟用户把 exe 拷到别处双击
 set -u
 
-PY="E:/C/CTools/PythonTools/python/python.exe"
-BASE="E:/C/CTools/AI Make/OC-Ferry-build/deployer"
-TESTDIR="/c/Users/Chemingitch/AppData/Local/Temp/ocferry-clean-test"
+# 路径自动定位 —— 脚本放哪都能跑，也方便别人 clone 下来直接用
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="${PYTHON:-python}"    # 需要装了 pywebview / pillow 的解释器
+BASE="$HERE"
+TESTDIR="${OCFERRY_TESTDIR:-/tmp/ocferry-clean-test}"
 
 echo "=== 0. 清理已有实例 ==="
 taskkill //F //IM OC-Ferry-Deployer.exe 2>/dev/null | head -3
